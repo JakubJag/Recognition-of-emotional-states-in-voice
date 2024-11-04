@@ -28,9 +28,7 @@ for sub_dir in sub_dirs:
                     if features is not None:
                         data.append([features, emotion])  
 
-# Konwersja danych do DataFrame
 df = pd.DataFrame(data, columns=['MFCC_Features', 'Emotion_Label'])
-
 from sklearn.preprocessing import StandardScaler
 scaler = StandardScaler()
 features = np.array([item for item in df['MFCC_Features']])
