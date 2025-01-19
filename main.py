@@ -3,10 +3,14 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import librosa
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix, accuracy_score
 from collections import Counter
+
 
 base_dir = 'Baza dźwiekowa'
 sub_dirs = ['test', 'trening']
@@ -47,6 +51,30 @@ def extract_features(file_path, sample_rate=20000, n_mfcc=40):
     ])
     return features
 
+def plot_confusion_matrix(cm, class_names, title="Macierz konfuzji", cmap="Blues"):
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap=cmap, xticklabels=class_names, yticklabels=class_names)
+    plt.title(title)
+    plt.ylabel('Rzeczywiste etykiety')
+    plt.xlabel('Przewidywane etykiety')
+    plt.show()
+
+def plot_classification_report(y_true, y_pred, target_names):
+
+    report = classification_report(y_true, y_pred, target_names=target_names, output_dict=True)
+    report_df = pd.DataFrame(report).transpose()
+    report_df = report_df.drop(['accuracy', 'macro avg', 'weighted avg'])
+    metrics = ['precision', 'recall', 'f1-score']
+    for metric in metrics:
+        plt.figure(figsize=(10, 6))
+        sns.barplot(x=report_df.index, y=report_df[metric])
+        plt.title(f"{metric.capitalize()}")
+        plt.ylabel(metric.capitalize())
+        plt.xlabel("Klasa")
+        plt.xticks(rotation=45)
+        plt.ylim(0, 1) 
+        plt.show()
+
 data = []
 for sub_dir in sub_dirs:
     folder_path = os.path.join(base_dir, sub_dir)
@@ -65,7 +93,7 @@ df = pd.DataFrame(data, columns=['Features', 'Emotion'])
 df['Emotion'] = df['Emotion'].str.lower()
 
 
-df.to_csv('audio_data_processed.csv', index=False)  # to przerzucić zeby było wczesniej bo nie ma znaczenia 
+df.to_csv('audio_data_processed.csv', index=False) 
 
 X = np.array(df['Features'].tolist())
 y = np.array(df['Emotion'])
@@ -140,7 +168,11 @@ y_pred = classifier.predict(X_test_selected)
 cm = confusion_matrix(y_test, y_pred)
 accuracy = accuracy_score(y_test, y_pred)
 print("Confusion Matrix:\n", cm)
-print("Final Test Accuracy:", accuracy)
+print("Dokładność:", accuracy)
+
+
+class_names = label_encoder.inverse_transform(np.unique(y))
+plot_confusion_matrix(cm, class_names, title="Macierz konfuzji - SVM", cmap="Blues")
 
 from sklearn.metrics import classification_report
 
@@ -148,8 +180,7 @@ from sklearn.metrics import classification_report
 from sklearn.metrics import classification_report
 target_names = label_encoder.inverse_transform(np.unique(y))
 print(classification_report(y_test, y_pred, target_names=target_names))
-
-
+plot_classification_report(y_test, y_pred, target_names)
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, cross_val_score
@@ -236,25 +267,21 @@ print("Confusion Matrix:\n", cm)
 accuracy = accuracy_score(y_test, y_pred_rf)
 print("Dokładność:", accuracy)
 
+class_names = label_encoder.inverse_transform(np.unique(y))
+plot_confusion_matrix(cm, class_names, title="Macierz konfuzji - Random Forest", cmap="Blues")
+
 from sklearn.metrics import classification_report
 target_names = label_encoder.inverse_transform(np.unique(y))
 
 print(classification_report(y_test, y_pred_rf, target_names=target_names))
+plot_classification_report(y_test, y_pred, target_names)
 
 
-plt.figure(figsize=(8, 6))
-plt.bar(Counter(y).keys(), Counter(y).values())
-plt.title("Rozkład etykiet emocji w danych")
-plt.xlabel("Emocje")
-plt.ylabel("Liczba próbek")
-plt.show()
-
-
-# augmentacja danych w celu lepszego wyrównania klas 
-# crossvalidation 
-# CNN-LSTM
-
+# klasyczna siec neuronowa 1/2 warstwowa - zaimplementować bez bibliotek moze
+# skupić się na macierzy pomyłek na prezenaacji 
+#walidacja -podzielić na uczący 70% walidacyjny 15% testowy 15% np.
+# crossvalidation, k-fold, 1-leave-out k-fold najpopularniejsza 
+# CNN-LSTM - pytorch 
 # tSNE/PCA 
 # clustering 
-
-# KNN, Bayes
+# KNN/Bayes

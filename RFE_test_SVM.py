@@ -15,11 +15,9 @@ def extract_features(file_path, sample_rate=20000, n_mfcc=40):
     spectral_contrast = librosa.feature.spectral_contrast(y=audio, sr=sr)
     rolloff = librosa.feature.spectral_rolloff(y=audio, sr=sr)
     zero_crossings = librosa.feature.zero_crossing_rate(y=audio)
-
     spectral_entropy = -np.sum((librosa.amplitude_to_db(abs(librosa.stft(audio)))**2) * 
                                np.log(librosa.amplitude_to_db(abs(librosa.stft(audio)))**2 + 1e-10), axis=0)
     spectral_entropy = np.mean(spectral_entropy)
-
     energy = np.square(audio)
     frame_size = 512
     energy_frames = [np.sum(energy[i:i+frame_size]) for i in range(0, len(energy), frame_size)]
@@ -70,9 +68,8 @@ scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
-# Funkcje do RBF-RFE
+# Funkcje do RBF-RFE - Oblicza wagi cech dla jądra RBF
 def calculate_rbf_weights(X, y, model, gamma):
-    """Oblicza wagi cech dla jądra RBF."""
     support_vectors = model.support_vectors_
     dual_coef = model.dual_coef_[0]
 
@@ -85,7 +82,6 @@ def calculate_rbf_weights(X, y, model, gamma):
     return np.abs(weights)
 
 def rbf_rfe(X, y, gamma, num_features_to_select):
-    """RFE dla SVM z jądrem RBF."""
     remaining_features = list(range(X.shape[1]))
     rankings = []
 
