@@ -17,25 +17,20 @@ To install the "Recognition of Emotional States in Voice" project:
    `git clone https://github.com/JakubJag/Recognition-of-emotional-states-in-voice.git`
 
 4. Ensure the following Python libraries are installed:
-   - asd
-
-
-
-
-
-
-
-
+   - numpy
+   - pandas
+   - scikit-learn
+   - matplotlib
+  
 ## **Project Structure**
 
-
-├── audio_data.csv   # Raw dataset with MFCC features and emotion labels
-├── audio_data_processed.csv   # Processed dataset ready for modeling
-├── main.py   # Main script for training and evaluation
-├── RFE_test_FOREST.py   # Script for feature selection and testing with Random Forest
-├── RFE_test_SVM.py   # Script for feature selection and testing with SVM
-
-
-
+```
+.
+├── audio_data.csv                # Raw dataset with MFCC features and emotion labels
+├── audio_data_processed.csv      # Processed dataset ready for modeling
+├── main.py                       # Main script for training and evaluation
+├── RFE_test_FOREST.py            # Script for feature selection and testing with Random Forest
+├── RFE_test_SVM.py               # Script for feature selection and testing with SVM
+```
 
 
