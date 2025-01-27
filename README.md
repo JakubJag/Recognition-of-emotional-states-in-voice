@@ -16,11 +16,15 @@ To install the "Recognition of Emotional States in Voice" project:
 
    `git clone https://github.com/JakubJag/Recognition-of-emotional-states-in-voice.git`
 
-Ensure the following Python libraries are installed:   
-*numpy
-*pandas
-*scikit-learn
-*matplotlib
+4. Ensure the following Python libraries are installed:
+   - asd
+
+
+
+
+
+
+
 
 ## **Project Structure**
 
