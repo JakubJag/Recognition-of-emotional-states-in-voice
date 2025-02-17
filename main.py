@@ -10,45 +10,97 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix, accuracy_score
 from collections import Counter
+import parselmouth
 
 
 base_dir = 'Baza dźwiekowa'
 sub_dirs = ['test', 'trening']
 
-import librosa
-import numpy as np
-
 def extract_features(file_path, sample_rate=20000, n_mfcc=40): 
-    audio, sr = librosa.load(file_path, sr=sample_rate)
+
+    audio, sr = librosa.load(file_path, sr=sample_rate)   
     mfccs = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=n_mfcc)
     chroma = librosa.feature.chroma_stft(y=audio, sr=sr)
     spectral_contrast = librosa.feature.spectral_contrast(y=audio, sr=sr)
     rolloff = librosa.feature.spectral_rolloff(y=audio, sr=sr)
     zero_crossings = librosa.feature.zero_crossing_rate(y=audio)
-
-    # Entropia spektralna
-    spectral_entropy = -np.sum((librosa.amplitude_to_db(abs(librosa.stft(audio)))**2) * 
-                               np.log(librosa.amplitude_to_db(abs(librosa.stft(audio)))**2 + 1e-10), axis=0)
+    
+    stft = librosa.stft(audio)
+    db_stft = librosa.amplitude_to_db(np.abs(stft))
+    spectral_entropy = -np.sum((db_stft**2) * np.log(db_stft**2 + 1e-10), axis=0)
     spectral_entropy = np.mean(spectral_entropy)
-
-    # Entropia energetyczna
-    energy = np.square(audio)
+    
+    energy = audio ** 2
     frame_size = 512
-    energy_frames = [np.sum(energy[i:i+frame_size]) for i in range(0, len(energy), frame_size)]
-    energy_entropy = -np.sum((energy_frames / np.sum(energy_frames)) * 
-                             np.log(energy_frames / np.sum(energy_frames) + 1e-10))
+    energy_frames = np.array([np.sum(energy[i:i+frame_size])
+                              for i in range(0, len(energy), frame_size)])
+    energy_sum = np.sum(energy_frames) + 1e-10
+    energy_entropy = -np.sum((energy_frames / energy_sum) *
+                             np.log(energy_frames / energy_sum + 1e-10))
+    
+    onset_env = librosa.onset.onset_strength(y=audio, sr=sr)
+    tempo = librosa.feature.tempo(onset_envelope=onset_env, sr=sr)[0]
+    threshold = 0.02
+    silent_parts = np.sum(energy_frames < threshold)
+    
+    f0 = librosa.yin(y=audio, fmin=librosa.note_to_hz('C2'),
+                     fmax=librosa.note_to_hz('C7'))
+    f0_mean = np.mean(f0)
+    f0_std = np.std(f0)
+    
+    sound = parselmouth.Sound(file_path)
+    pitch = sound.to_pitch() 
+    intensity = sound.to_intensity() 
+    pitch_mean = parselmouth.praat.call(pitch, "Get mean", 0.0, 0.0, "Hertz")
+    pitch_min = np.nanmin(pitch.selected_array['frequency'])
+    pitch_max = np.nanmax(pitch.selected_array['frequency'])
+    intensity_mean = np.nanmean(intensity.values)    
 
-    # Statystyki cech
+    formants = sound.to_formant_burg()
+    times = formants.xs()
+    f1 = np.nanmean([formants.get_value_at_time(1, t) for t in times])
+    f2 = np.nanmean([formants.get_value_at_time(2, t) for t in times])
+    f3 = np.nanmean([formants.get_value_at_time(3, t) for t in times])
+    
+    pitch = sound.to_pitch()
+    point_process = parselmouth.praat.call(sound, "To PointProcess (periodic, cc)", 50, 600)
+    jitter = parselmouth.praat.call(point_process, "Get jitter (local)", 0.0001, 0.02, 0.02, 1.5, 1.3)
+    shimmer = parselmouth.praat.call([sound, point_process], "Get shimmer (local)", 0.0001, 0.02, 1.3, 1.8, 1.6, 1.5)    
+    
     stats = [np.mean, np.median, np.std, np.min, np.max]
-    features = np.hstack([
-        np.hstack([stat(mfccs.T, axis=0) for stat in stats]),
-        np.hstack([stat(chroma.T, axis=0) for stat in stats]),
-        np.hstack([stat(spectral_contrast.T, axis=0) for stat in stats]),
-        np.hstack([stat(rolloff.T, axis=0) for stat in stats]),
-        np.hstack([stat(zero_crossings.T, axis=0) for stat in stats]),
+    mfccs_stats = np.concatenate([func(mfccs, axis=1) for func in stats])
+    chroma_stats = np.concatenate([func(chroma, axis=1) for func in stats])
+    spectral_contrast_stats = np.concatenate([func(spectral_contrast, axis=1) for func in stats])
+    rolloff_stats = np.concatenate([func(rolloff, axis=1) for func in stats])
+    zero_crossings_stats = np.concatenate([func(zero_crossings, axis=1) for func in stats])
+    
+    additional_features = np.array([
         spectral_entropy,
-        energy_entropy
+        energy_entropy,
+        tempo,
+        silent_parts,
+        f0_mean,
+        f0_std,
+        f1,
+        f2,
+        f3,
+        jitter,
+        shimmer,
+        pitch_mean,      
+        pitch_min,       
+        pitch_max,       
+        intensity_mean
     ])
+    
+    features = np.hstack([
+        mfccs_stats,
+        chroma_stats,
+        spectral_contrast_stats,
+        rolloff_stats,
+        zero_crossings_stats,
+        additional_features
+    ])
+    
     return features
 
 def plot_confusion_matrix(cm, class_names, title="Macierz konfuzji", cmap="Blues"):
@@ -104,6 +156,8 @@ label_encoder = LabelEncoder()
 y = label_encoder.fit_transform(y)
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=0)
+
+
 
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
@@ -277,11 +331,16 @@ print(classification_report(y_test, y_pred_rf, target_names=target_names))
 plot_classification_report(y_test, y_pred, target_names)
 
 
-# klasyczna siec neuronowa 1/2 warstwowa - zaimplementować bez bibliotek moze
-# skupić się na macierzy pomyłek na prezenaacji 
-#walidacja -podzielić na uczący 70% walidacyjny 15% testowy 15% np.
-# crossvalidation, k-fold, 1-leave-out k-fold najpopularniejsza 
-# CNN-LSTM - pytorch 
-# tSNE/PCA 
-# clustering 
-# KNN/Bayes
+# crossvalidation
+
+# XGBOOST - lepszy Random forest??
+# CNN-LSTM jako deep learning|| pytorch || analiza przestrzenna (CNN) z analizą czasową (LSTM).
+# Transformer (AST) – jeśli chcesz sprawdzić najnowocześniejsze podejście tez deep learning
+# Alternatywa CRNN (CNN + GRU) dla lepszego wykorzystania cech czasowych
+
+
+# TO DO
+# I zaimplementowanie nowych parametrów i ich sprawdzenie z RFE czy dobrze działają oraz grid_searchem i random_searchem wcześniej 
+# II zaimplementowanie prostej sieci neuronowej jako baseline 
+# III zaimplementowanie CNN_LSTM
+# IV poźniej AST i CRNN
